@@ -1,8 +1,5 @@
 <?php
 
-error_reporting(E_ALL | E_STRICT);
-assert_options(ASSERT_BAIL, TRUE);
-
 function sha1_bin($hex)
 {
     return pack('H40', $hex);
@@ -362,33 +359,6 @@ class Git
 	}
 	throw new Exception(sprintf('no such branch: %s', $branch));
     }
-}
-
-function lstree($tree, $indent=0)
-{
-    foreach ($tree->nodes as $node)
-    {
-	$obj = $tree->repo->getObject($node->object);
-	for ($i = 0; $i < $indent; $i++)
-	    printf("    ");
-	if ($obj instanceof GitTree)
-	{
-	    printf("%s/\n", $node->name);
-	    lstree($obj, $indent+1);
-	}
-	if ($obj instanceof GitBlob)
-	    printf("%s\n", $node->name);
-    }
-}
-
-$repo = new Git('/home/patrik/git/ewiki/.git');
-$todo = array($repo->getHead('master'));
-while (count($todo))
-{
-    $cur = $repo->getObject(array_shift($todo));
-    $todo += $cur->parents;
-    printf("\n%s\n", sha1_hex($cur->getName()));
-    lstree($repo->getObject($cur->tree), 1);
 }
 
 ?>

@@ -53,12 +53,13 @@ class GitTree extends GitObject
 	while ($start < strlen($data))
 	{
 	    $node = new stdClass;
-	    array_push($this->nodes, $node);
 
 	    $pos = strpos($data, "\0", $start);
 	    list($node->mode, $node->name) = explode(' ', substr($data, $start, $pos-$start), 2);
 	    $node->object = substr($data, $pos+1, 20);
 	    $start = $pos+21;
+
+	    $this->nodes[$node->name] = $node;
 	}
 	unset($data);
     }
@@ -319,9 +320,9 @@ class Git
 		    fclose($pack);
 		}
 	    }
+	    if ($object_offset == -1)
+		throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
 	}
-	if ($object_offset == -1)
-	    throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
 	assert($object_size == strlen($object_data));
 	return array($object_type, $object_data);
     }

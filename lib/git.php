@@ -185,6 +185,7 @@ class Git
 	if (file_exists($path))
 	{
 	    $f = fopen($path, 'rb');
+	    flock($f, LOCK_SH);
 	    fseek($f, 2);
 	    stream_filter_append($f, 'zlib.inflate');
 
@@ -208,6 +209,7 @@ class Git
 	    foreach ($this->packs as $pack_name)
 	    {
 		$index = fopen(sprintf('%s/objects/pack/pack-%s.idx', $this->dir, sha1_hex($pack_name)), 'rb');
+		flock($index, LOCK_SH);
 		$object_offset = -1;
 		/* check version */
 		$magic = fread($index, 4);
@@ -245,6 +247,7 @@ class Git
 		if ($object_offset != -1)
 		{
 		    $pack = fopen(sprintf('%s/objects/pack/pack-%s.pack', $this->dir, sha1_hex($pack_name)), 'rb');
+		    flock($pack, LOCK_SH);
 		    $magic = fread($pack, 4);
 		    list($version) = array_merge(unpack('N', fread($pack, 4)));
 		    if ($magic != 'PACK' || $version != 2)
@@ -359,6 +362,7 @@ class Git
 	{
 	    $head = NULL;
 	    $f = fopen($path, 'r');
+	    flock($f, LOCK_SH);
 	    while ($head === NULL && ($line = fgets($f)) !== FALSE)
 	    {
 		if ($line{0} == '#')

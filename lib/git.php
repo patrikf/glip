@@ -15,6 +15,17 @@ class GitCommit extends GitObject
     {
 	parent::__construct($repo, Git::OBJ_COMMIT);
     }
+    public function parse_stamp($stamp)
+    {
+	$obj = new stdClass;
+	assert(preg_match('/^(.+?)\s+<(.+?)>\s+(\d+)\s+([+-]\d{4})$/', $stamp, $m));
+	$obj->name = $m[1];
+	$obj->email = $m[2];
+	$obj->time = intval($m[3]);
+	$off = intval($m[4]);
+	$obj->offset = ($off/100) * 3600 + ($off%100) * 60;
+	return $obj;
+    }
     public function parse($data)
     {
 	$this->hash($data);
@@ -33,8 +44,11 @@ class GitCommit extends GitObject
 
 	$this->tree = sha1_bin($meta['tree'][0]);
 	$this->parents = array_map('sha1_bin', $meta['parent']);
-	$this->author = $meta['author'];
-	$this->committer = $meta['committer'];
+	$this->author = self::parse_stamp($meta['author'][0]);
+	$this->committer = self::parse_stamp($meta['committer'][0]);
+
+	$this->summary = array_shift($lines);
+	$this->detail = implode("\n", $lines);
     }
 }
 

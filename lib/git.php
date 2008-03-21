@@ -309,7 +309,6 @@ class Git
 			    }
 
 			    stream_filter_remove($filter);
-//			    list() = array_merge(unpack('N', fread($pack, 1)));
 			}
 			else
 			    throw new Exception('offset deltas are not yet supported');
@@ -323,7 +322,7 @@ class Git
 	    if ($object_offset == -1)
 		throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
 	}
-	assert($object_size == strlen($object_data));
+//	assert($object_size == strlen($object_data));
 	return array($object_type, $object_data);
     }
 

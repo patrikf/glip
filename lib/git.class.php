@@ -1,201 +1,19 @@
 <?php
 
+require_once('git/git_object.class.php');
+require_once('git/git_blob.class.php');
+require_once('git/git_commit.class.php');
+require_once('git/git_commit_stamp.class.php');
+require_once('git/git_tree.class.php');
+
 function sha1_bin($hex)
 {
     return pack('H40', $hex);
 }
+
 function sha1_hex($bin)
 {
     return bin2hex($bin);
-}
-
-class GitCommitStamp
-{
-    public $name;
-    public $email;
-    public $time;
-    public $offset;
-
-    public function unserialize($data)
-    {
-	assert(preg_match('/^(.+?)\s+<(.+?)>\s+(\d+)\s+([+-]\d{4})$/', $data, $m));
-	$this->name = $m[1];
-	$this->email = $m[2];
-	$this->time = intval($m[3]);
-	$off = intval($m[4]);
-	$this->offset = ($off/100) * 3600 + ($off%100) * 60;
-    }
-    public function serialize()
-    {
-	if ($this->offset%60)
-	    throw new Exception('cannot serialize sub-minute timezone offset');
-	return sprintf('%s <%s> %d %+05d', $this->name, $this->email, $this->time, ($this->offset/3600)*100 + ($this->offset/60)%60);
-    }
-}
-
-class GitCommit extends GitObject
-{
-    public function __construct($repo)
-    {
-	parent::__construct($repo, Git::OBJ_COMMIT);
-    }
-    public function _unserialize($data)
-    {
-	$lines = explode("\n", $data);
-	unset($data);
-	$meta = array('parent' => array());
-	while (($line = array_shift($lines)) != '')
-	{
-	    $parts = explode(' ', $line, 2);
-	    if (!isset($meta[$parts[0]]))
-		$meta[$parts[0]] = array($parts[1]);
-	    else
-		array_push($meta[$parts[0]], $parts[1]);
-	}
-
-	$this->tree = sha1_bin($meta['tree'][0]);
-	$this->parents = array_map('sha1_bin', $meta['parent']);
-	$this->author = new GitCommitStamp;
-	$this->author->unserialize($meta['author'][0]);
-	$this->committer = new GitCommitStamp;
-	$this->committer->unserialize($meta['committer'][0]);
-
-	$this->summary = array_shift($lines);
-	$this->detail = implode("\n", $lines);
-    }
-    public function _serialize()
-    {
-	$s = '';
-	$s .= sprintf("tree %s\n", sha1_hex($this->tree));
-	foreach ($this->parents as $parent)
-	    $s .= sprintf("parent %s\n", sha1_hex($parent));
-	$s .= sprintf("author %s\n", $this->author->serialize());
-	$s .= sprintf("committer %s\n", $this->committer->serialize());
-	$s .= "\n".$this->summary."\n".$this->detail;
-	return $s;
-    }
-}
-
-class GitTree extends GitObject
-{
-    public $nodes = array();
-
-    public function __construct($repo)
-    {
-	parent::__construct($repo, Git::OBJ_TREE);
-    }
-    public function _unserialize($data)
-    {
-	$this->nodes = array();
-	$start = 0;
-	while ($start < strlen($data))
-	{
-	    $node = new stdClass;
-
-	    $pos = strpos($data, "\0", $start);
-	    list($node->mode, $node->name) = explode(' ', substr($data, $start, $pos-$start), 2);
-	    $node->mode = intval($node->mode, 8);
-	    $node->object = substr($data, $pos+1, 20);
-	    $start = $pos+21;
-
-	    $this->nodes[$node->name] = $node;
-	}
-	unset($data);
-    }
-    public function _serialize()
-    {
-	$s = '';
-	foreach ($this->nodes as $node)
-	    $s .= sprintf("%s %s\0%s", base_convert($node->mode, 10, 8), $node->name, $node->object);
-	return $s;
-    }
-}
-
-class GitBlob extends GitObject
-{
-    public $data = NULL;
-
-    public function __construct($repo)
-    {
-	parent::__construct($repo, Git::OBJ_BLOB);
-    }
-    public function _unserialize($data)
-    {
-	$this->data = $data;
-    }
-    public function _serialize()
-    {
-	return $this->data;
-    }
-}
-
-class GitObject
-{
-    public $repo;
-    protected $type;
-    protected $name = NULL;
-
-    static public function create($repo, $type)
-    {
-	if ($type == Git::OBJ_COMMIT)
-	    return new GitCommit($repo);
-	if ($type == Git::OBJ_TREE)
-	    return new GitTree($repo);
-	if ($type == Git::OBJ_BLOB)
-	    return new GitBlob($repo);
-	throw new Exception(sprintf('unhandled object type %d', $type));
-    }
-    protected function hash($data)
-    {
-	$hash = hash_init('sha1');
-	hash_update($hash, Git::get_type_name($this->type));
-	hash_update($hash, ' ');
-	hash_update($hash, strlen($data));
-	hash_update($hash, "\0");
-	hash_update($hash, $data);
-	return hash_final($hash, TRUE);
-    }
-    public function __construct($repo, $type)
-    {
-	$this->repo = $repo;
-	$this->type = $type;
-    }
-
-    public function getName() {	return $this->name; }
-    public function getType() { return $this->type; }
-
-    public function unserialize($data)
-    {
-	$this->name = $this->hash($data);
-	$this->_unserialize($data);
-    }
-    public function serialize()
-    {
-	return $this->_serialize();
-    }
-    public function rehash()
-    {
-	$this->name = $this->hash($this->serialize());
-    }
-
-    public function write()
-    {
-	$sha1 = sha1_hex($this->name);
-	$path = sprintf('%s/objects/%s/%s', $this->repo->dir, substr($sha1, 0, 2), substr($sha1, 2));
-	if (file_exists($path))
-	    return FALSE;
-	$dir = dirname($path);
-	if (!is_dir($dir))
-	    mkdir(dirname($path), 0770);
-	$f = fopen($path, 'a');
-	flock($f, LOCK_EX);
-	ftruncate($f, 0);
-	$data = $this->serialize();
-	$data = Git::get_type_name($this->type).' '.strlen($data)."\0".$data;
-	fwrite($f, gzcompress($data));
-	fclose($f);
-	return TRUE;
-    }
 }
 
 class Git
@@ -222,6 +40,7 @@ class Git
 	    return Git::OBJ_TAG;
 	throw new Exception(sprintf('unknown type name: %s', $name));
     }
+
     static public function get_type_name($type)
     {
 	if ($type == Git::OBJ_COMMIT)
@@ -295,7 +114,7 @@ class Git
 		    $n = (ord($object_name{0}) == 0 ? $prev : $cur-$prev);
 		    if ($n > 0)
 		    {
-			/* 
+			/*
 			 * TODO: do a binary search in [$offset, $offset+24*$n)
 			 */
 			fseek($index, 4*256 + 24*$prev);
@@ -419,6 +238,7 @@ class Git
 	assert($name == $object->getName());
 	return $object;
     }
+
     public function getHead($branch)
     {
 	$subpath = sprintf('refs/heads/%s', $branch);
@@ -447,4 +267,3 @@ class Git
     }
 }
 
-?>

@@ -71,23 +71,9 @@ class Git
 	$path = sprintf('%s/objects/%s/%s', $this->dir, substr($sha1, 0, 2), substr($sha1, 2));
 	if (file_exists($path))
 	{
-	    $f = fopen($path, 'rb');
-	    flock($f, LOCK_SH);
-	    fseek($f, 2);
-	    stream_filter_append($f, 'zlib.inflate');
-
-	    $hdr = '';
-	    do
-	    {
-		$hdr .= ($c = fgetc($f));
-	    }
-	    while (ord($c));
+            list($hdr, $object_data) = explode("\0", gzuncompress(file_get_contents($path)), 2);
 
 	    sscanf($hdr, "%s %d", $type, $object_size);
-
-	    $object_data = stream_get_contents($f);
-	    fclose($f);
-
 	    $object_type = Git::get_type_id($type);
 	}
 	else
@@ -154,12 +140,12 @@ class Git
 			$object_type = $type;
 			$object_size = $size;
 
-			$pos = ftell($pack)+2;
-			rewind($pack); /* FIXME: find the PHP bug that requires this */
-			fseek($pack, $pos);
-			$filter = stream_filter_append($pack, 'zlib.inflate');
-			$object_data = stream_get_contents($pack);
-			stream_filter_remove($filter);
+                        /*
+                         * We don't know the actual size of the compressed
+                         * data, so we'll assume it's less than
+                         * $object_size+512.
+                         */
+                        $object_data = gzuncompress(fread($pack, $object_size+512), $object_size);
 		    }
 		    else if ($type == Git::OBJ_OFS_DELTA || $type == Git::OBJ_REF_DELTA)
 		    {
@@ -168,16 +154,15 @@ class Git
 			    $base_name = fread($pack, 20);
 			    list($object_type, $base) = $this->getRawObject($base_name);
 
-			    $pos = ftell($pack)+2;
-			    rewind($pack);
-			    fseek($pack, $pos);
-			    $filter = stream_filter_append($pack, 'zlib.inflate');
+                            // $size is the length of the uncompressed delta
+			    $delta = gzuncompress(fread($pack, $size+512), $size);
+                            $pos = 0;
 
 			    $base_size = 0;
 			    $c = 0x80;
 			    for ($i = 0; $c & 0x80; $i += 7)
 			    {
-				$c = ord(fgetc($pack));
+				$c = ord($delta{$pos++});
 				$base_size |= ($c << $i);
 			    }
 
@@ -185,34 +170,35 @@ class Git
 			    $c = 0x80;
 			    for ($i = 0; $c & 0x80; $i += 7)
 			    {
-				$c = ord(fgetc($pack));
+				$c = ord($delta{$pos++});
 				$object_size |= ($c << $i);
 			    }
 
 //			    assert($base_size == strlen($base));
 
 			    $object_data = '';
-			    while (($opcode = fgetc($pack)) !== FALSE)
+			    while ($pos < strlen($delta))
 			    {
-				$opcode = ord($opcode);
+				$opcode = ord($delta{$pos++});
 				if ($opcode & 0x80)
 				{
 				    $off = 0;
-				    if ($opcode & 0x01) $off = ord(fgetc($pack));
-				    if ($opcode & 0x02) $off |= ord(fgetc($pack)) <<  8;
-				    if ($opcode & 0x04) $off |= ord(fgetc($pack)) << 16;
-				    if ($opcode & 0x08) $off |= ord(fgetc($pack)) << 16;
+				    if ($opcode & 0x01) $off = ord($delta{$pos++});
+				    if ($opcode & 0x02) $off |= ord($delta{$pos++}) <<  8;
+				    if ($opcode & 0x04) $off |= ord($delta{$pos++}) << 16;
+				    if ($opcode & 0x08) $off |= ord($delta{$pos++}) << 16;
 				    $len = 0;
-				    if ($opcode & 0x10) $len = ord(fgetc($pack));
-				    if ($opcode & 0x20) $len |= ord(fgetc($pack)) <<  8;
-				    if ($opcode & 0x40) $len |= ord(fgetc($pack)) << 16;
+				    if ($opcode & 0x10) $len = ord($delta{$pos++});
+				    if ($opcode & 0x20) $len |= ord($delta{$pos++}) <<  8;
+				    if ($opcode & 0x40) $len |= ord($delta{$pos++}) << 16;
 				    $object_data .= substr($base, $off, $len);
 				}
 				else
-				    $object_data .= fread($pack, $opcode);
+                                {
+				    $object_data .= substr($delta, $pos, $opcode);
+                                    $pos += $opcode;
+                                }
 			    }
-
-			    stream_filter_remove($filter);
 			}
 			else
 			    throw new Exception('offset deltas are not yet supported');

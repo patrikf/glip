@@ -46,5 +46,18 @@ class GitCommit extends GitObject
 	$s .= "\n".$this->summary."\n".$this->detail;
 	return $s;
     }
+
+    public function getHistory()
+    {
+        $commits = array($this);
+        $r = array();
+        while (($commit = array_shift($commits)) !== NULL)
+        {
+            array_push($r, $commit);
+            $commits += array_map(array($this->repo, 'getObject'), $commit->parents);
+        }
+        usort($r, create_function('$a,$b', 'return ($a->committer->time - $b->committer->time);'));
+        return $r;
+    }
 }
 

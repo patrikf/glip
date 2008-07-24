@@ -5,6 +5,13 @@ require_once('git/git_commit_stamp.class.php');
 
 class GitCommit extends GitObject
 {
+    public $tree;
+    public $parents;
+    public $author;
+    public $committer;
+    public $summary;
+    public $detail;
+
     public function __construct($repo)
     {
 	parent::__construct($repo, Git::OBJ_COMMIT);
@@ -58,6 +65,12 @@ class GitCommit extends GitObject
         }
         usort($r, create_function('$a,$b', 'return ($a->committer->time - $b->committer->time);'));
         return $r;
+    }
+
+    public function find($path)
+    {
+        $tree = $this->repo->getObject($this->tree);
+        return $tree->find($path);
     }
 }
 

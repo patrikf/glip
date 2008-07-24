@@ -23,7 +23,7 @@ class GitObject
     protected function hash($data)
     {
 	$hash = hash_init('sha1');
-	hash_update($hash, Git::get_type_name($this->type));
+	hash_update($hash, Git::getTypeName($this->type));
 	hash_update($hash, ' ');
 	hash_update($hash, strlen($data));
 	hash_update($hash, "\0");
@@ -66,7 +66,7 @@ class GitObject
 	flock($f, LOCK_EX);
 	ftruncate($f, 0);
 	$data = $this->serialize();
-	$data = Git::get_type_name($this->type).' '.strlen($data)."\0".$data;
+	$data = Git::getTypeName($this->type).' '.strlen($data)."\0".$data;
 	fwrite($f, gzcompress($data));
 	fclose($f);
 	return TRUE;

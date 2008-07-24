@@ -28,7 +28,7 @@ class Git
     const OBJ_OFS_DELTA = 6;
     const OBJ_REF_DELTA = 7;
 
-    static public function get_type_id($name)
+    static public function getTypeID($name)
     {
 	if ($name == 'commit')
 	    return Git::OBJ_COMMIT;
@@ -41,7 +41,7 @@ class Git
 	throw new Exception(sprintf('unknown type name: %s', $name));
     }
 
-    static public function get_type_name($type)
+    static public function getTypeName($type)
     {
 	if ($type == Git::OBJ_COMMIT)
 	    return 'commit';
@@ -74,7 +74,7 @@ class Git
             list($hdr, $object_data) = explode("\0", gzuncompress(file_get_contents($path)), 2);
 
 	    sscanf($hdr, "%s %d", $type, $object_size);
-	    $object_type = Git::get_type_id($type);
+	    $object_type = Git::getTypeID($type);
 	}
 	else
 	{

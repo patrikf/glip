@@ -97,5 +97,71 @@ class GitTree extends GitObject
 
         return $r;
     }
+
+    /*
+     * updateNode:
+     * $path: Path to the node.
+     * $mode: Git mode to set the node to. 0 if the mode shall be cleared.
+     * $object: SHA1 id of the object that shall be referenced by the node.
+     *
+     * Missing directories in the path will be created automatically.
+     *
+     * Returns: an array of GitObjects that were newly created, i.e. need to be
+     * written.
+     */
+    public function updateNode($path, $mode, $object)
+    {
+        if (!is_array($path))
+            $path = explode('/', $path);
+        $name = array_shift($path);
+        if (count($path) == 0)
+        {
+            /* create leaf node */
+            if ($mode)
+            {
+                $node = new stdClass;
+                $node->mode = $mode;
+                $node->name = $name;
+                $node->object = $object;
+                $node->is_dir = !!($mode & 040000);
+
+                $this->nodes[$node->name] = $node;
+            }
+            else
+                unset($this->nodes[$name]);
+
+            return array();
+        }
+        else
+        {
+            /* descend one level */
+            if (isset($this->nodes[$name]))
+            {
+                $node = $this->nodes[$name];
+                if (!$node->is_dir)
+                    throw new GitTreeInvalidPathError;
+                $subtree = clone $this->repo->getObject($node->object);
+            }
+            else
+            {
+                /* create new tree */
+                $subtree = new GitTree;
+
+                $node = new stdClass;
+                $node->mode = 040000;
+                $node->name = $name;
+                $node->is_dir = TRUE;
+
+                $this->nodes[$node->name] = $node;
+            }
+            $pending = $subtree->updateNode($path, $mode, $object);
+
+            $subtree->rehash();
+            $node->object = $subtree->getName();
+
+            array_push($pending, $subtree);
+            return $pending;
+        }
+    }
 }
 

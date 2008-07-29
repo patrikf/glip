@@ -235,7 +235,7 @@ class Git
 	if (file_exists($path))
 	{
 	    $head = NULL;
-	    $f = fopen($path, 'r');
+	    $f = fopen($path, 'rb');
 	    flock($f, LOCK_SH);
 	    while ($head === NULL && ($line = fgets($f)) !== FALSE)
 	    {

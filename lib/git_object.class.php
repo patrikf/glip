@@ -62,7 +62,7 @@ class GitObject
 	$dir = dirname($path);
 	if (!is_dir($dir))
 	    mkdir(dirname($path), 0770);
-	$f = fopen($path, 'a');
+	$f = fopen($path, 'ab');
 	flock($f, LOCK_EX);
 	ftruncate($f, 0);
 	$data = $this->serialize();

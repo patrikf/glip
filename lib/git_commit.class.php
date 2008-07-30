@@ -79,7 +79,7 @@ class GitCommit extends GitObject
 
     static public function treeDiff($a, $b)
     {
-        return GitTree::treeDiff($a->getTree(), $b->getTree());
+        return GitTree::treeDiff($a ? $a->getTree() : NULL, $b ? $b->getTree() : NULL);
     }
 }
 

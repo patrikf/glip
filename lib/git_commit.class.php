@@ -67,10 +67,19 @@ class GitCommit extends GitObject
         return $r;
     }
 
+    public function getTree()
+    {
+        return $this->repo->getObject($this->tree);
+    }
+
     public function find($path)
     {
-        $tree = $this->repo->getObject($this->tree);
-        return $tree->find($path);
+        return $this->getTree()->find($path);
+    }
+
+    static public function treeDiff($a, $b)
+    {
+        return GitTree::treeDiff($a->getTree(), $b->getTree());
     }
 }
 

@@ -88,11 +88,11 @@ class GitTree extends GitObject
             if ($node->is_dir)
             {
                 $subtree = $this->repo->getObject($node->object);
-                foreach ($subtree->listRecursive() as $entry)
-                    array_push($r, $node->name . '/' . $entry);
+                foreach ($subtree->listRecursive() as $entry => $blob)
+                    $r[$node->name . '/' . $entry] = $blob;
             }
             else
-                array_push($r, $node->name);
+                $r[$node->name] = $node->object;
         }
 
         return $r;
@@ -162,6 +162,55 @@ class GitTree extends GitObject
             array_push($pending, $subtree);
             return $pending;
         }
+    }
+
+    const TREEDIFF_A = 0x01;
+    const TREEDIFF_B = 0x02;
+
+    const TREEDIFF_REMOVED = self::TREEDIFF_A;
+    const TREEDIFF_ADDED = self::TREEDIFF_B;
+    const TREEDIFF_CHANGED = 0x03;
+
+    static public function treeDiff($a_tree, $b_tree)
+    {
+        $a_blobs = $a_tree ? $a_tree->listRecursive() : array();
+        $b_blobs = $b_tree ? $b_tree->listRecursive() : array();
+
+        $a_files = array_keys($a_blobs);
+        $b_files = array_keys($b_blobs);
+
+        $changes = array();
+
+        sort($a_files);
+        sort($b_files);
+        $a = $b = 0;
+        while ($a < count($a_files) || $b < count($b_files))
+        {
+            if ($a < count($a_files) && $b < count($b_files))
+                $cmp = strcmp($a_files[$a], $b_files[$b]);
+            else
+                $cmp = 0;
+            if ($b >= count($b_files) || $cmp < 0)
+            {
+                $changes[$a_files[$a]] = self::TREEDIFF_REMOVED;
+                $a++;
+            }
+            else if ($a >= count($a_files) || $cmp > 0)
+            {
+                $changes[$b_files[$b]] = self::TREEDIFF_ADDED;
+                $b++;
+            }
+            else
+            {
+                if ($a_blobs[$a_files[$a]] != $b_blobs[$b_files[$b]])
+                    $changes[$a_files[$a]] = self::TREEDIFF_CHANGED;
+
+                $a++;
+                $b++;
+            }
+        }
+
+        return $changes;
     }
 }
 

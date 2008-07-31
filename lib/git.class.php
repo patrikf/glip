@@ -96,8 +96,11 @@ class Git
 		    /* version 1 */
 		    /* read corresponding fanout entry */
 		    fseek($index, max(ord($object_name{0})-1, 0)*4);
-		    list($prev, $cur) = array_merge(unpack('N2', fread($index, 8)));
-		    $n = (ord($object_name{0}) == 0 ? $prev : $cur-$prev);
+                    if ($object_name{0} == "\x00")
+                        list($prev, $cur) = array(0, Binary::fuint32($index));
+                    else
+                        list($prev, $cur) = Binary::nfuint32(2, $index);
+		    $n = $cur-$prev;
 		    if ($n > 0)
 		    {
 			/*

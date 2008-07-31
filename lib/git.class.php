@@ -106,11 +106,12 @@ class Git
 			fseek($index, 4*256 + 24*$prev);
 			for ($i = 0; $i < $n; $i++)
 			{
-			    $a = unpack('Noff/a20name', fread($index, 24));
-			    if ($a['name'] == $object_name)
+                            $off = Binary::fuint32($index);
+                            $name = fread($index, 20);
+			    if ($name == $object_name)
 			    {
 				/* we found the object */
-				$object_offset = $a['off'];
+				$object_offset = $off;
 				break;
 			    }
 			}
@@ -122,7 +123,7 @@ class Git
 		    $pack = fopen(sprintf('%s/objects/pack/pack-%s.pack', $this->dir, sha1_hex($pack_name)), 'rb');
 		    flock($pack, LOCK_SH);
 		    $magic = fread($pack, 4);
-		    list($version) = array_merge(unpack('N', fread($pack, 4)));
+		    $version = Binary::fuint32($pack);
 		    if ($magic != 'PACK' || $version != 2)
 			throw new Exception('unsupported pack format');
 		    fseek($pack, $object_offset);

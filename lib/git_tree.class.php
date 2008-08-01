@@ -1,7 +1,6 @@
 <?php
 
 class GitTreeError extends Exception {}
-class GitTreeNotFoundError extends GitTreeError {}
 class GitTreeInvalidPathError extends GitTreeError {}
 
 require_once('git/git_object.class.php');
@@ -61,7 +60,7 @@ class GitTree extends GitObject
             return $this->getName();
 
         if (!isset($this->nodes[$path[0]]))
-            throw new GitTreeNotFoundError;
+            return NULL;
         $cur = $this->nodes[$path[0]]->object;
 
         array_shift($path);

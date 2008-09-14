@@ -144,7 +144,7 @@ class GitTree extends GitObject
             else
             {
                 /* create new tree */
-                $subtree = new GitTree;
+                $subtree = new GitTree($this->repo);
 
                 $node = new stdClass;
                 $node->mode = 040000;

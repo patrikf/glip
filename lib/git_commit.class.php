@@ -54,16 +54,39 @@ class GitCommit extends GitObject
 	return $s;
     }
 
+    /* returns history in topological order */
     public function getHistory()
     {
-        $commits = array($this);
-        $r = array();
-        while (($commit = array_shift($commits)) !== NULL)
+        /* count incoming edges */
+        $inc = array();
+
+        $queue = array($this);
+        while (($commit = array_shift($queue)) !== NULL)
         {
-            array_push($r, $commit);
-            $commits += array_map(array($this->repo, 'getObject'), $commit->parents);
+            foreach ($commit->parents as $parent)
+            {
+                if (!isset($inc[$parent]))
+                {
+                    $inc[$parent] = 1;
+                    array_push($queue, $this->repo->getObject($parent));
+                }
+                else
+                    $inc[$parent]++;
+            }
         }
-        usort($r, create_function('$a,$b', 'return ($a->committer->time - $b->committer->time);'));
+
+        $queue = array($this);
+        $r = array();
+        while (($commit = array_pop($queue)) !== NULL)
+        {
+            array_unshift($r, $commit);
+            foreach ($commit->parents as $parent)
+            {
+                if (--$inc[$parent] == 0)
+                    array_push($queue, $this->repo->getObject($parent));
+            }
+        }
+
         return $r;
     }
 

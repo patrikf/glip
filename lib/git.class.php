@@ -92,16 +92,18 @@ class Git
                 /* read corresponding fanout entry */
                 fseek($index, max(ord($object_name{0})-1, 0)*4);
                 if ($object_name{0} == "\x00")
-                    list($prev, $cur) = array(0, Binary::fuint32($index));
+                    $cur = 0;
                 else
-                    list($prev, $cur) = Binary::nfuint32(2, $index);
-                $n = $cur-$prev;
+                    $cur = Binary::fuint32($index);
+                $after = Binary::fuint32($index);
+
+                $n = $after-$cur;
                 if ($n == 0)
                     continue;
                 /*
                  * TODO: do a binary search in [$offset, $offset+24*$n)
                  */
-                fseek($index, 4*256 + 24*$prev);
+                fseek($index, 4*256 + 24*$cur);
                 for ($i = 0; $i < $n; $i++)
                 {
                     $off = Binary::fuint32($index);

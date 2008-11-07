@@ -254,6 +254,11 @@ class Git
      */
     protected function getRawObject($object_name)
     {
+        static $cache = array();
+        /* FIXME allow limiting the cache to a certain size */
+
+        if (isset($cache[$object_name]))
+            return $cache[$object_name];
 	$sha1 = sha1_hex($object_name);
 	$path = sprintf('%s/objects/%s/%s', $this->dir, substr($sha1, 0, 2), substr($sha1, 2));
 	if (file_exists($path))
@@ -282,7 +287,7 @@ class Git
 	}
         else
             throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
-
+        $cache[$object_name] = $r;
         return $r;
     }
 

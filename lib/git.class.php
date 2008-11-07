@@ -65,8 +65,200 @@ class Git
 		array_push($this->packs, sha1_bin($m[1]));
     }
 
+    /**
+     * Try to find an object in a pack.
+     *
+     * @param string $object_name name of the object (binary SHA1)
+     * @return array an array consisting of the name of the pack (string) and
+     * the byte offset inside it, or NULL if not found
+     */
+    protected function findPackedObject($object_name)
+    {
+        foreach ($this->packs as $pack_name)
+        {
+            $index = fopen(sprintf('%s/objects/pack/pack-%s.idx', $this->dir, sha1_hex($pack_name)), 'rb');
+            flock($index, LOCK_SH);
+
+            /* check version */
+            $magic = fread($index, 4);
+            if ($magic == "\xFFtOc")
+            {
+                /* version 2+ */
+                throw new Exception('unsupported pack index format');
+            }
+            else
+            {
+                /* version 1 */
+                /* read corresponding fanout entry */
+                fseek($index, max(ord($object_name{0})-1, 0)*4);
+                if ($object_name{0} == "\x00")
+                    $cur = 0;
+                else
+                    $cur = Binary::fuint32($index);
+                $after = Binary::fuint32($index);
+
+                $n = $after-$cur;
+                if ($n == 0)
+                    continue;
+                /*
+                 * TODO: do a binary search in [$offset, $offset+24*$n)
+                 */
+                fseek($index, 4*256 + 24*$cur);
+                for ($i = 0; $i < $n; $i++)
+                {
+                    $off = Binary::fuint32($index);
+                    $name = fread($index, 20);
+                    if ($name == $object_name)
+                    {
+                        /* we found the object */
+                        fclose($index);
+                        return array($pack_name, $off);
+                    }
+                }
+            }
+            fclose($index);
+        }
+        /* not found */
+        return NULL;
+    }
+
+    /**
+     * Apply the git delta $delta to the byte sequence $base.
+     *
+     * @param string $delta the delta to apply
+     * @param string $base the sequence to patch
+     * @return string the patched byte sequence
+     */
+    protected function applyDelta($delta, $base)
+    {
+        $pos = 0;
+
+        $base_size = Binary::git_varint($delta, &$pos);
+        $result_size = Binary::git_varint($delta, &$pos);
+
+        $r = '';
+        while ($pos < strlen($delta))
+        {
+            $opcode = ord($delta{$pos++});
+            if ($opcode & 0x80)
+            {
+                /* copy a part of $base */
+                $off = 0;
+                if ($opcode & 0x01) $off = ord($delta{$pos++});
+                if ($opcode & 0x02) $off |= ord($delta{$pos++}) <<  8;
+                if ($opcode & 0x04) $off |= ord($delta{$pos++}) << 16;
+                if ($opcode & 0x08) $off |= ord($delta{$pos++}) << 24;
+                $len = 0;
+                if ($opcode & 0x10) $len = ord($delta{$pos++});
+                if ($opcode & 0x20) $len |= ord($delta{$pos++}) <<  8;
+                if ($opcode & 0x40) $len |= ord($delta{$pos++}) << 16;
+                $r .= substr($base, $off, $len);
+            }
+            else
+            {
+                /* take the next $opcode bytes as they are */
+                $r .= substr($delta, $pos, $opcode);
+                $pos += $opcode;
+            }
+        }
+        return $r;
+    }
+
+    /**
+     * Unpack an object from a pack.
+     *
+     * @param resource $pack open .pack file
+     * @param resource $object_offset offset of the object in the pack
+     * @return array an array consisting of the object type (int) and the
+     * binary representation of the object (string)
+     */
+    protected function unpackObject($pack, $object_offset)
+    {
+        fseek($pack, $object_offset);
+
+        /* read object header */
+        $c = ord(fgetc($pack));
+        $type = ($c >> 4) & 0x07;
+        $size = $c & 0x0F;
+        for ($i = 4; $c & 0x80; $i += 7)
+        {
+            $c = ord(fgetc($pack));
+            $size |= ($c << $i);
+        }
+
+        /* compare sha1_file.c:1608 unpack_entry */
+        if ($type == Git::OBJ_COMMIT || $type == Git::OBJ_TREE || $type == Git::OBJ_BLOB || $type == Git::OBJ_TAG)
+        {
+            /*
+             * We don't know the actual size of the compressed
+             * data, so we'll assume it's less than
+             * $object_size+512.
+             *
+             * FIXME use PHP stream filter API as soon as it behaves
+             * consistently
+             */
+            $data = gzuncompress(fread($pack, $size+512), $size);
+        }
+        else if ($type == Git::OBJ_OFS_DELTA)
+        {
+            /* 20 = maximum varint length for offset */
+            $buf = fread($pack, $size+512+20);
+
+            /*
+             * contrary to varints in other places, this one is big endian
+             * (and 1 is added each turn)
+             * see sha1_file.c (get_delta_base)
+             */
+            $pos = 0;
+            $offset = -1;
+            do
+            {
+                $offset++;
+                $c = ord($buf{$pos++});
+                $offset = ($offset << 7) + ($c & 0x7F);
+            }
+            while ($c & 0x80);
+
+            $delta = gzuncompress(substr($buf, $pos), $size);
+            unset($buf);
+
+            $base_offset = $object_offset - $offset;
+            assert($base_offset >= 0);
+            list($type, $base) = $this->unpackObject($pack, $base_offset);
+
+            $data = $this->applyDelta($delta, $base);
+        }
+        else if ($type == Git::OBJ_REF_DELTA)
+        {
+            $base_name = fread($pack, 20);
+            list($type, $base) = $this->getRawObject($base_name);
+
+            // $size is the length of the uncompressed delta
+            $delta = gzuncompress(fread($pack, $size+512), $size);
+
+            $data = $this->applyDelta($delta, $base);
+        }
+        else
+            throw new Exception(sprintf('object of unknown type %d', $type));
+
+        return array($type, $data);
+    }
+
+    /**
+     * Fetch an object in its binary representation by name.
+     * Throws an exception if the object cannot be found.
+     *
+     * @param string $object_name name of the object (binary SHA1)
+     * @return array an array consisting of the object type (int) and the
+     * binary representation of the object (string)
+     */
     protected function getRawObject($object_name)
     {
+        static $cache = array();
+        /* FIXME allow limiting the cache to a certain size */
+
+        if (isset($cache[$object_name]))
+            return $cache[$object_name];
 	$sha1 = sha1_hex($object_name);
 	$path = sprintf('%s/objects/%s/%s', $this->dir, substr($sha1, 0, 2), substr($sha1, 2));
 	if (file_exists($path))
@@ -75,151 +267,36 @@ class Git
 
 	    sscanf($hdr, "%s %d", $type, $object_size);
 	    $object_type = Git::getTypeID($type);
+            $r = array($object_type, $object_data);
 	}
-	else
+	else if ($x = $this->findPackedObject($object_name))
 	{
-	    /* look into packs */
-	    foreach ($this->packs as $pack_name)
-	    {
-		$index = fopen(sprintf('%s/objects/pack/pack-%s.idx', $this->dir, sha1_hex($pack_name)), 'rb');
-		flock($index, LOCK_SH);
-		$object_offset = -1;
-		/* check version */
-		$magic = fread($index, 4);
-		if ($magic == "\xFFtOc")
-		{
-		    /* version 2+ */
-		    throw new Exception('unsupported pack index format');
-		}
-		else
-		{
-		    /* version 1 */
-		    /* read corresponding fanout entry */
-		    fseek($index, max(ord($object_name{0})-1, 0)*4);
-                    if ($object_name{0} == "\x00")
-                        list($prev, $cur) = array(0, Binary::fuint32($index));
-                    else
-                        list($prev, $cur) = Binary::nfuint32(2, $index);
-		    $n = $cur-$prev;
-		    if ($n > 0)
-		    {
-			/*
-			 * TODO: do a binary search in [$offset, $offset+24*$n)
-			 */
-			fseek($index, 4*256 + 24*$prev);
-			for ($i = 0; $i < $n; $i++)
-			{
-                            $off = Binary::fuint32($index);
-                            $name = fread($index, 20);
-			    if ($name == $object_name)
-			    {
-				/* we found the object */
-				$object_offset = $off;
-				break;
-			    }
-			}
-		    }
-		}
-		fclose($index);
-		if ($object_offset != -1)
-		{
-		    $pack = fopen(sprintf('%s/objects/pack/pack-%s.pack', $this->dir, sha1_hex($pack_name)), 'rb');
-		    flock($pack, LOCK_SH);
-		    $magic = fread($pack, 4);
-		    $version = Binary::fuint32($pack);
-		    if ($magic != 'PACK' || $version != 2)
-			throw new Exception('unsupported pack format');
-		    fseek($pack, $object_offset);
-		    $c = ord(fgetc($pack));
-		    $type = ($c >> 4) & 0x07;
-		    $size = $c & 0x0F;
-		    for ($i = 4; $c & 0x80; $i += 7)
-		    {
-			$c = ord(fgetc($pack));
-			$size |= ($c << $i);
-		    }
-		    /* compare sha1_file.c:1608 unpack_entry */
-		    if ($type == Git::OBJ_COMMIT || $type == Git::OBJ_TREE || $type == Git::OBJ_BLOB || $type == Git::OBJ_TAG)
-		    {
-			$object_type = $type;
-			$object_size = $size;
+            list($pack_name, $object_offset) = $x;
 
-                        /*
-                         * We don't know the actual size of the compressed
-                         * data, so we'll assume it's less than
-                         * $object_size+512.
-                         */
-                        $object_data = gzuncompress(fread($pack, $object_size+512), $object_size);
-		    }
-		    else if ($type == Git::OBJ_OFS_DELTA || $type == Git::OBJ_REF_DELTA)
-		    {
-			if ($type == Git::OBJ_REF_DELTA)
-			{
-			    $base_name = fread($pack, 20);
-			    list($object_type, $base) = $this->getRawObject($base_name);
+            $pack = fopen(sprintf('%s/objects/pack/pack-%s.pack', $this->dir, sha1_hex($pack_name)), 'rb');
+            flock($pack, LOCK_SH);
 
-                            // $size is the length of the uncompressed delta
-			    $delta = gzuncompress(fread($pack, $size+512), $size);
-                            $pos = 0;
+            /* check magic and version */
+            $magic = fread($pack, 4);
+            $version = Binary::fuint32($pack);
+            if ($magic != 'PACK' || $version != 2)
+                throw new Exception('unsupported pack format');
 
-			    $base_size = 0;
-			    $c = 0x80;
-			    for ($i = 0; $c & 0x80; $i += 7)
-			    {
-				$c = ord($delta{$pos++});
-				$base_size |= ($c << $i);
-			    }
-
-			    $object_size = 0;
-			    $c = 0x80;
-			    for ($i = 0; $c & 0x80; $i += 7)
-			    {
-				$c = ord($delta{$pos++});
-				$object_size |= ($c << $i);
-			    }
-
-//			    assert($base_size == strlen($base));
-
-			    $object_data = '';
-			    while ($pos < strlen($delta))
-			    {
-				$opcode = ord($delta{$pos++});
-				if ($opcode & 0x80)
-				{
-				    $off = 0;
-				    if ($opcode & 0x01) $off = ord($delta{$pos++});
-				    if ($opcode & 0x02) $off |= ord($delta{$pos++}) <<  8;
-				    if ($opcode & 0x04) $off |= ord($delta{$pos++}) << 16;
-				    if ($opcode & 0x08) $off |= ord($delta{$pos++}) << 16;
-				    $len = 0;
-				    if ($opcode & 0x10) $len = ord($delta{$pos++});
-				    if ($opcode & 0x20) $len |= ord($delta{$pos++}) <<  8;
-				    if ($opcode & 0x40) $len |= ord($delta{$pos++}) << 16;
-				    $object_data .= substr($base, $off, $len);
-				}
-				else
-                                {
-				    $object_data .= substr($delta, $pos, $opcode);
-                                    $pos += $opcode;
-                                }
-			    }
-			}
-			else
-			    throw new Exception('offset deltas are not yet supported');
-		    }
-		    else
-			throw new Exception(sprintf('object %s of unknown type %d', sha1_hex($object_name), $type));
-		    break;
-		    fclose($pack);
-		}
-	    }
-	    if ($object_offset == -1)
-		throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
+            $r = $this->unpackObject($pack, $object_offset);
+            fclose($pack);
 	}
-//	assert($object_size == strlen($object_data));
-	return array($object_type, $object_data);
+        else
+            throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
+        $cache[$object_name] = $r;
+        return $r;
     }
 
+    /**
+     * Fetch an object in its PHP representation.
+     *
+     * @param string $name name of the object (binary SHA1)
+     * @return GitObject the object
+     */
     public function getObject($name)
     {
 	list($type, $data) = $this->getRawObject($name);

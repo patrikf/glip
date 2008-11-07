@@ -16,7 +16,8 @@ final class Binary
 
     static public function uint32($str, $pos=0)
     {
-        return ord($str{$pos+0}) << 24 | ord($str{$pos+1}) << 16 | ord($str{$pos+2}) << 8 | ord($str{$pos+3});
+        $a = unpack('Nx', substr($str, $pos, 4));
+        return $a['x'];
     }
 
     static public function nuint32($n, $str, $pos=0)

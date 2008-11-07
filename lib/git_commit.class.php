@@ -40,6 +40,8 @@ class GitCommit extends GitObject
 
 	$this->summary = array_shift($lines);
 	$this->detail = implode("\n", $lines);
+
+        $this->history = NULL;
     }
 
     public function _serialize()
@@ -57,6 +59,9 @@ class GitCommit extends GitObject
     /* returns history in topological order */
     public function getHistory()
     {
+        if ($this->history)
+            return $this->history;
+
         /* count incoming edges */
         $inc = array();
 
@@ -87,6 +92,7 @@ class GitCommit extends GitObject
             }
         }
 
+        $this->history = $r;
         return $r;
     }
 

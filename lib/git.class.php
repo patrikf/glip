@@ -165,7 +165,87 @@ class Git
     }
 
     /**
-     * Fetch an object in its binary representation.
+     * Unpack an object from a pack.
+     *
+     * @param resource $pack open .pack file
+     * @param resource $object_offset offset of the object in the pack
+     * @return array an array consisting of the object type (int) and the
+     * binary representation of the object (string)
+     */
+    protected function unpackObject($pack, $object_offset)
+    {
+        fseek($pack, $object_offset);
+
+        /* read object header */
+        $c = ord(fgetc($pack));
+        $type = ($c >> 4) & 0x07;
+        $size = $c & 0x0F;
+        for ($i = 4; $c & 0x80; $i += 7)
+        {
+            $c = ord(fgetc($pack));
+            $size |= ($c << $i);
+        }
+
+        /* compare sha1_file.c:1608 unpack_entry */
+        if ($type == Git::OBJ_COMMIT || $type == Git::OBJ_TREE || $type == Git::OBJ_BLOB || $type == Git::OBJ_TAG)
+        {
+            /*
+             * We don't know the actual size of the compressed
+             * data, so we'll assume it's less than
+             * $object_size+512.
+             *
+             * FIXME use PHP stream filter API as soon as it behaves
+             * consistently
+             */
+            $data = gzuncompress(fread($pack, $size+512), $size);
+        }
+        else if ($type == Git::OBJ_OFS_DELTA)
+        {
+            /* 20 = maximum varint length for offset */
+            $buf = fread($pack, $size+512+20);
+
+            /*
+             * contrary to varints in other places, this one is big endian
+             * (and 1 is added each turn)
+             * see sha1_file.c (get_delta_base)
+             */
+            $pos = 0;
+            $offset = -1;
+            do
+            {
+                $offset++;
+                $c = ord($buf{$pos++});
+                $offset = ($offset << 7) + ($c & 0x7F);
+            }
+            while ($c & 0x80);
+
+            $delta = gzuncompress(substr($buf, $pos), $size);
+            unset($buf);
+
+            $base_offset = $object_offset - $offset;
+            assert($base_offset >= 0);
+            list($type, $base) = $this->unpackObject($pack, $base_offset);
+
+            $data = $this->applyDelta($delta, $base);
+        }
+        else if ($type == Git::OBJ_REF_DELTA)
+        {
+            $base_name = fread($pack, 20);
+            list($type, $base) = $this->getRawObject($base_name);
+
+            // $size is the length of the uncompressed delta
+            $delta = gzuncompress(fread($pack, $size+512), $size);
+
+            $data = $this->applyDelta($delta, $base);
+        }
+        else
+            throw new Exception(sprintf('object of unknown type %d', $type));
+
+        return array($type, $data);
+    }
+
+    /**
+     * Fetch an object in its binary representation by name.
      * Throws an exception if the object cannot be found.
      *
      * @param string $object_name name of the object (binary SHA1)
@@ -182,7 +262,7 @@ class Git
 
 	    sscanf($hdr, "%s %d", $type, $object_size);
 	    $object_type = Git::getTypeID($type);
-            return array($object_type, $object_data);
+            $r = array($object_type, $object_data);
 	}
 	else if ($x = $this->findPackedObject($object_name))
 	{
@@ -197,50 +277,13 @@ class Git
             if ($magic != 'PACK' || $version != 2)
                 throw new Exception('unsupported pack format');
 
-            /* read object */
-            fseek($pack, $object_offset);
-            $c = ord(fgetc($pack));
-            $type = ($c >> 4) & 0x07;
-            $size = $c & 0x0F;
-            for ($i = 4; $c & 0x80; $i += 7)
-            {
-                $c = ord(fgetc($pack));
-                $size |= ($c << $i);
-            }
-
-            /* compare sha1_file.c:1608 unpack_entry */
-            if ($type == Git::OBJ_COMMIT || $type == Git::OBJ_TREE || $type == Git::OBJ_BLOB || $type == Git::OBJ_TAG)
-            {
-                /*
-                 * We don't know the actual size of the compressed
-                 * data, so we'll assume it's less than
-                 * $object_size+512.
-                 *
-                 * FIXME use PHP stream filter API as soon as it behaves
-                 * consistently
-                 */
-                $data = gzuncompress(fread($pack, $size+512), $size);
-                fclose($pack);
-                return array($type, $data);
-            }
-            else if ($type == Git::OBJ_OFS_DELTA)
-                throw new Exception('offset deltas are not yet supported'); // FIXME
-            else if ($type == Git::OBJ_REF_DELTA)
-            {
-                $base_name = fread($pack, 20);
-                list($object_type, $base) = $this->getRawObject($base_name);
-
-                // $size is the length of the uncompressed delta
-                $delta = gzuncompress(fread($pack, $size+512), $size);
-
-                $object_data = $this->applyDelta($delta, $base);
-                fclose($pack);
-                return array($object_type, $object_data);
-            }
-            else
-                throw new Exception(sprintf('object %s is of unknown type %d', sha1_hex($object_name), $type));
+            $r = $this->unpackObject($pack, $object_offset);
+            fclose($pack);
 	}
-        throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
+        else
+            throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
+
+        return $r;
     }
 
     /**

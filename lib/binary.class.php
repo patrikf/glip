@@ -30,6 +30,18 @@ final class Binary
 
     static public function fuint32($f) { return Binary::uint32(fread($f, 4)); }
     static public function nfuint32($n, $f) { return Binary::nuint32($n, fread($f, 4*$n)); }
+
+    static public function git_varint($str, &$pos=0)
+    {
+        $r = 0;
+        $c = 0x80;
+        for ($i = 0; $c & 0x80; $i += 7)
+        {
+            $c = ord($str{$pos++});
+            $r |= (($c & 0x7F) << $i);
+        }
+        return $r;
+    }
 }
 
 ?>

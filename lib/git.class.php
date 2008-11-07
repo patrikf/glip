@@ -133,21 +133,8 @@ class Git
     {
         $pos = 0;
 
-        $base_size = 0;
-        $c = 0x80;
-        for ($i = 0; $c & 0x80; $i += 7)
-        {
-            $c = ord($delta{$pos++});
-            $base_size |= ($c << $i);
-        }
-
-        $result_size = 0;
-        $c = 0x80;
-        for ($i = 0; $c & 0x80; $i += 7)
-        {
-            $c = ord($delta{$pos++});
-            $result_size |= ($c << $i);
-        }
+        $base_size = Binary::git_varint($delta, &$pos);
+        $result_size = Binary::git_varint($delta, &$pos);
 
         $r = '';
         while ($pos < strlen($delta))

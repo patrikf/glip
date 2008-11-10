@@ -42,6 +42,6 @@ final class Binary
         }
         return $r;
     }
-}
+};
 
 ?>

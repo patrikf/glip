@@ -110,5 +110,5 @@ class GitCommit extends GitObject
     {
         return GitTree::treeDiff($a ? $a->getTree() : NULL, $b ? $b->getTree() : NULL);
     }
-}
-
+};
+?>

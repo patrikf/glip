@@ -23,5 +23,5 @@ class GitCommitStamp
 	    throw new Exception('cannot serialize sub-minute timezone offset');
 	return sprintf('%s <%s> %d %+05d', $this->name, $this->email, $this->time, ($this->offset/3600)*100 + ($this->offset/60)%60);
     }
-}
-
+};
+?>

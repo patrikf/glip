@@ -332,5 +332,5 @@ class Git
 	}
 	throw new Exception(sprintf('no such branch: %s', $branch));
     }
-}
-
+};
+?>

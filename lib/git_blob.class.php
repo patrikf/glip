@@ -20,5 +20,5 @@ class GitBlob extends GitObject
     {
 	return $this->data;
     }
-}
-
+};
+?>

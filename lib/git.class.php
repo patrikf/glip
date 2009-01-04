@@ -154,7 +154,7 @@ class Git
                     $off = Binary::fuint32($index);
                     if ($off & 0x80000000)
                     {
-                        /* packfile > 2 GB. Jesus, you really want to handle this
+                        /* packfile > 2 GB. Gee, you really want to handle this
                          * much data with PHP?
                          */
                         throw new Exception('64-bit packfiles offsets not implemented');

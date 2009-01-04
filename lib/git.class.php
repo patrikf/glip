@@ -65,6 +65,24 @@ class Git
 		array_push($this->packs, sha1_bin($m[1]));
     }
 
+    protected function readFanout($f, $object_name, $offset)
+    {
+        if ($object_name{0} == "\x00")
+        {
+            $cur = 0;
+            fseek($f, $offset);
+            $after = Binary::fuint32($f);
+        }
+        else
+        {
+            fseek($f, $offset + (ord($object_name{0}) - 1)*4);
+            $cur = Binary::fuint32($f);
+            $after = Binary::fuint32($f);
+        }
+
+        return array($cur, $after);
+    }
+
     /**
      * Try to find an object in a pack.
      *
@@ -81,25 +99,16 @@ class Git
 
             /* check version */
             $magic = fread($index, 4);
-            if ($magic == "\xFFtOc")
-            {
-                /* version 2+ */
-                throw new Exception('unsupported pack index format');
-            }
-            else
+            if ($magic != "\xFFtOc")
             {
                 /* version 1 */
                 /* read corresponding fanout entry */
-                fseek($index, max(ord($object_name{0})-1, 0)*4);
-                if ($object_name{0} == "\x00")
-                    $cur = 0;
-                else
-                    $cur = Binary::fuint32($index);
-                $after = Binary::fuint32($index);
+                list($cur, $after) = $this->readFanout($index, $object_name, 0);
 
                 $n = $after-$cur;
                 if ($n == 0)
                     continue;
+
                 /*
                  * TODO: do a binary search in [$offset, $offset+24*$n)
                  */
@@ -115,6 +124,47 @@ class Git
                         return array($pack_name, $off);
                     }
                 }
+            }
+            else
+            {
+                /* version 2+ */
+                $version = Binary::fuint32($index);
+                if ($version == 2)
+                {
+                    list($cur, $after) = $this->readFanout($index, $object_name, 8);
+
+                    if ($cur == $after)
+                        continue;
+
+                    fseek($index, 8 + 4*255);
+                    $total_objects = Binary::fuint32($index);
+
+                    /* look up sha1 */
+                    fseek($index, 8 + 4*256 + 20*$cur);
+                    for ($i = $cur; $i < $after; $i++)
+                    {
+                        $name = fread($index, 20);
+                        if ($name == $object_name)
+                            break;
+                    }
+                    if ($i == $after)
+                        continue;
+
+                    fseek($index, 8 + 4*256 + 24*$total_objects + 4*$i);
+                    $off = Binary::fuint32($index);
+                    if ($off & 0x80000000)
+                    {
+                        /* packfile > 2 GB. Jesus, you really want to handle this
+                         * much data with PHP?
+                         */
+                        throw new Exception('64-bit packfiles offsets not implemented');
+                    }
+
+                    fclose($index);
+                    return array($pack_name, $off);
+                }
+                else
+                    throw new Exception('unsupported pack index format');
             }
             fclose($index);
         }

@@ -24,7 +24,7 @@ final class Binary
     {
         $r = array();
         for ($i = 0; $i < $n; $i++, $pos += 4)
-            array_push($r, Binary::uint32($str, $pos));
+            $r[] = Binary::uint32($str, $pos);
         return $r;
     }
 

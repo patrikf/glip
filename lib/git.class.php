@@ -62,7 +62,7 @@ class Git
 	$dh = opendir(sprintf('%s/objects/pack', $this->dir));
 	while (($entry = readdir($dh)) !== FALSE)
 	    if (preg_match('#^pack-([0-9a-fA-F]{40})\.idx$#', $entry, $m))
-		array_push($this->packs, sha1_bin($m[1]));
+		$this->packs[] = sha1_bin($m[1]);
     }
 
     protected function readFanout($f, $object_name, $offset)

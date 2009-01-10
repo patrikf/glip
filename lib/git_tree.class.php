@@ -158,7 +158,7 @@ class GitTree extends GitObject
             $subtree->rehash();
             $node->object = $subtree->getName();
 
-            array_push($pending, $subtree);
+            $pending[] = $subtree;
             return $pending;
         }
     }

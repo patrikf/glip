@@ -28,7 +28,7 @@ class GitCommit extends GitObject
 	    if (!isset($meta[$parts[0]]))
 		$meta[$parts[0]] = array($parts[1]);
 	    else
-		array_push($meta[$parts[0]], $parts[1]);
+		$meta[$parts[0]][] = $parts[1];
 	}
 
 	$this->tree = sha1_bin($meta['tree'][0]);
@@ -73,7 +73,7 @@ class GitCommit extends GitObject
                 if (!isset($inc[$parent]))
                 {
                     $inc[$parent] = 1;
-                    array_push($queue, $this->repo->getObject($parent));
+                    $queue[] = $this->repo->getObject($parent);
                 }
                 else
                     $inc[$parent]++;
@@ -88,7 +88,7 @@ class GitCommit extends GitObject
             foreach ($commit->parents as $parent)
             {
                 if (--$inc[$parent] == 0)
-                    array_push($queue, $this->repo->getObject($parent));
+                    $queue[] = $this->repo->getObject($parent);
             }
         }
 

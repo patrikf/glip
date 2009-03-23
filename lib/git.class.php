@@ -65,6 +65,12 @@ class Git
 		$this->packs[] = sha1_bin($m[1]);
     }
 
+    /**
+     * Tries to find $object_name in the fanout table in $f at $offset.
+     * 
+     * @return array The range where the object can be located (first possible
+     * location and past-the-end location)
+     */
     protected function readFanout($f, $object_name, $offset)
     {
         if ($object_name{0} == "\x00")
@@ -356,7 +362,10 @@ class Git
 	return $object;
     }
 
-    public function getHead($branch)
+    /**
+     * Returns the tip of $branch (binary sha1).
+     */
+    public function getTip($branch='master')
     {
 	$subpath = sprintf('refs/heads/%s', $branch);
 	$path = sprintf('%s/%s', $this->dir, $subpath);

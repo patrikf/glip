@@ -356,7 +356,10 @@ class Git
 	return $object;
     }
 
-    public function getHead($branch)
+    /**
+     * Returns the tip of $branch (binary sha1).
+     */
+    public function getTip($branch='master')
     {
 	$subpath = sprintf('refs/heads/%s', $branch);
 	$path = sprintf('%s/%s', $this->dir, $subpath);

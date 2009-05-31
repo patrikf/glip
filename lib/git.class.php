@@ -25,11 +25,25 @@ require_once('git_commit.class.php');
 require_once('git_commit_stamp.class.php');
 require_once('git_tree.class.php');
 
+/**
+ * @relates Git
+ * @brief Convert a SHA-1 hash from hexadecimal to binary representation.
+ *
+ * @param $hex (string) The hash in hexadecimal representation.
+ * @returns (string) The hash in binary representation.
+ */
 function sha1_bin($hex)
 {
     return pack('H40', $hex);
 }
 
+/**
+ * @relates Git
+ * @brief Convert a SHA-1 hash from binary to hexadecimal representation.
+ *
+ * @param $bin (string) The hash in binary representation.
+ * @returns (string) The hash in hexadecimal representation.
+ */
 function sha1_hex($bin)
 {
     return bin2hex($bin);
@@ -85,9 +99,9 @@ class Git
     }
 
     /**
-     * Tries to find $object_name in the fanout table in $f at $offset.
-     * 
-     * @return array The range where the object can be located (first possible
+     * @brief Tries to find $object_name in the fanout table in $f at $offset.
+     *
+     * @returns array The range where the object can be located (first possible
      * location and past-the-end location)
      */
     protected function readFanout($f, $object_name, $offset)
@@ -109,10 +123,10 @@ class Git
     }
 
     /**
-     * Try to find an object in a pack.
+     * @brief Try to find an object in a pack.
      *
-     * @param string $object_name name of the object (binary SHA1)
-     * @return array an array consisting of the name of the pack (string) and
+     * @param $object_name (string) name of the object (binary SHA1)
+     * @returns (array) an array consisting of the name of the pack (string) and
      * the byte offset inside it, or NULL if not found
      */
     protected function findPackedObject($object_name)
@@ -198,11 +212,11 @@ class Git
     }
 
     /**
-     * Apply the git delta $delta to the byte sequence $base.
+     * @brief Apply the git delta $delta to the byte sequence $base.
      *
-     * @param string $delta the delta to apply
-     * @param string $base the sequence to patch
-     * @return string the patched byte sequence
+     * @param $delta (string) the delta to apply
+     * @param $base (string) the sequence to patch
+     * @returns (string) the patched byte sequence
      */
     protected function applyDelta($delta, $base)
     {
@@ -240,11 +254,11 @@ class Git
     }
 
     /**
-     * Unpack an object from a pack.
+     * @brief Unpack an object from a pack.
      *
-     * @param resource $pack open .pack file
-     * @param resource $object_offset offset of the object in the pack
-     * @return array an array consisting of the object type (int) and the
+     * @param $pack (resource) open .pack file
+     * @param $object_offset (integer) offset of the object in the pack
+     * @returns (array) an array consisting of the object type (int) and the
      * binary representation of the object (string)
      */
     protected function unpackObject($pack, $object_offset)
@@ -320,11 +334,12 @@ class Git
     }
 
     /**
-     * Fetch an object in its binary representation by name.
+     * @brief Fetch an object in its binary representation by name.
+     *
      * Throws an exception if the object cannot be found.
      *
-     * @param string $object_name name of the object (binary SHA1)
-     * @return array an array consisting of the object type (int) and the
+     * @param $object_name (string) name of the object (binary SHA1)
+     * @returns (array) an array consisting of the object type (int) and the
      * binary representation of the object (string)
      */
     protected function getRawObject($object_name)
@@ -367,10 +382,10 @@ class Git
     }
 
     /**
-     * Fetch an object in its PHP representation.
+     * @brief Fetch an object in its PHP representation.
      *
-     * @param string $name name of the object (binary SHA1)
-     * @return GitObject the object
+     * @param $name (string) name of the object (binary SHA1)
+     * @returns (GitObject) the object
      */
     public function getObject($name)
     {
@@ -382,7 +397,10 @@ class Git
     }
 
     /**
-     * Returns the tip of $branch (binary sha1).
+     * @brief Look up a branch.
+     *
+     * @param $branch (string) The branch to look up, defaulting to @em master.
+     * @returns (string) The tip of the branch (binary sha1).
      */
     public function getTip($branch='master')
     {

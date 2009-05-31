@@ -21,7 +21,7 @@
 class GitTreeError extends Exception {}
 class GitTreeInvalidPathError extends GitTreeError {}
 
-require_once('git/git_object.class.php');
+require_once('git_object.class.php');
 
 class GitTree extends GitObject
 {

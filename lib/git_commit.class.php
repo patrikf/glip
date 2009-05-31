@@ -18,8 +18,8 @@
  * along with glip.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require_once('git/git_object.class.php');
-require_once('git/git_commit_stamp.class.php');
+require_once('git_object.class.php');
+require_once('git_commit_stamp.class.php');
 
 class GitCommit extends GitObject
 {

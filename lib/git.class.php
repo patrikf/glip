@@ -18,11 +18,12 @@
  * along with glip.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require_once('git/git_object.class.php');
-require_once('git/git_blob.class.php');
-require_once('git/git_commit.class.php');
-require_once('git/git_commit_stamp.class.php');
-require_once('git/git_tree.class.php');
+require_once('binary.class.php');
+require_once('git_object.class.php');
+require_once('git_blob.class.php');
+require_once('git_commit.class.php');
+require_once('git_commit_stamp.class.php');
+require_once('git_tree.class.php');
 
 function sha1_bin($hex)
 {

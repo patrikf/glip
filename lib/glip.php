@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2008 Patrik Fimml
+ * Copyright (C) 2009 Patrik Fimml
  *
  * This file is part of glip.
  *
@@ -18,25 +18,8 @@
  * along with glip.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require_once('git_object.class.php');
+$old_include_path = set_include_path(dirname(__FILE__));
+require_once('git.class.php');
+set_include_path($old_include_path);
 
-class GitBlob extends GitObject
-{
-    public $data = NULL;
-
-    public function __construct($repo)
-    {
-	parent::__construct($repo, Git::OBJ_BLOB);
-    }
-
-    public function _unserialize($data)
-    {
-	$this->data = $data;
-    }
-
-    public function _serialize()
-    {
-	return $this->data;
-    }
-};
 ?>

@@ -16,6 +16,8 @@ Function definitions are separated with empty lines.
 
 NO empty lines at the beginning/end of any block.
 
+PHP closing tags are intentionally omitted.
+
 
 === Git Policy ===
 

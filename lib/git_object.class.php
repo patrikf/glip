@@ -89,5 +89,5 @@ class GitObject
 	fclose($f);
 	return TRUE;
     }
-};
-?>
+}
+

@@ -23,11 +23,36 @@ require_once('git_commit_stamp.class.php');
 
 class GitCommit extends GitObject
 {
+    /**
+     * @brief (string) The tree referenced by this commit, as binary sha1
+     * string.
+     */
     public $tree;
+
+    /**
+     * @brief (array of string) Parent commits of this commit, as binary sha1
+     * strings.
+     */
     public $parents;
+
+    /**
+     * @brief (GitCommitStamp) The author of this commit.
+     */
     public $author;
+
+    /**
+     * @brief (GitCommitStamp) The committer of this commit.
+     */
     public $committer;
+
+    /**
+     * @brief (string) Commit summary, i.e. the first line of the commit message.
+     */
     public $summary;
+
+    /**
+     * @brief (string) Everything after the first line of the commit message.
+     */
     public $detail;
 
     public function __construct($repo)
@@ -74,7 +99,11 @@ class GitCommit extends GitObject
 	return $s;
     }
 
-    /* returns history in topological order */
+    /**
+     * @brief Get commit history in topological order.
+     *
+     * @returns (array of GitCommit)
+     */
     public function getHistory()
     {
         if ($this->history)
@@ -114,11 +143,24 @@ class GitCommit extends GitObject
         return $r;
     }
 
+    /**
+     * @brief Get the tree referenced by this commit.
+     *
+     * @returns The GitTree referenced by this commit.
+     */
     public function getTree()
     {
         return $this->repo->getObject($this->tree);
     }
 
+    /**
+     * @copybrief GitTree::find()
+     *
+     * This is a convenience function calling GitTree::find() on the commit's
+     * tree.
+     *
+     * @copydetails GitTree::find()
+     */
     public function find($path)
     {
         return $this->getTree()->find($path);

@@ -67,6 +67,17 @@ class GitTree extends GitObject
 	return $s;
     }
 
+    /**
+     * @brief Find the tree or blob at a certain path.
+     *
+     * @throws GitTreeInvalidPathError The path was found to be invalid. This
+     * can happen if you are trying to treat a file like a directory (i.e.
+     * @em foo/bar where @em foo is a file).
+     *
+     * @param $path (string) The path to look for, relative to this tree.
+     * @returns The GitTree or GitBlob at the specified path, or NULL if none
+     * could be found.
+     */
     public function find($path)
     {
         if (!is_array($path))
@@ -96,6 +107,13 @@ class GitTree extends GitObject
         }
     }
 
+    /**
+     * @brief Recursively list the contents of a tree.
+     *
+     * @returns (array mapping string to string) An array where the keys are
+     * paths relative to the current tree, and the values are SHA-1 names of
+     * the corresponding blobs in binary representation.
+     */
     public function listRecursive()
     {
         $r = array();
@@ -115,16 +133,20 @@ class GitTree extends GitObject
         return $r;
     }
 
-    /*
-     * updateNode:
-     * $path: Path to the node.
-     * $mode: Git mode to set the node to. 0 if the mode shall be cleared.
-     * $object: SHA1 id of the object that shall be referenced by the node.
+    /**
+     * @brief Updates a node in this tree.
      *
      * Missing directories in the path will be created automatically.
      *
-     * Returns: an array of GitObjects that were newly created, i.e. need to be
-     * written.
+     * @param $path (string) Path to the node, relative to this tree.
+     * @param $mode Git mode to set the node to. 0 if the node shall be
+     * cleared, i.e. the tree or blob shall be removed from this path.
+     * @param $object (string) Binary SHA-1 hash of the object that shall be
+     * placed at the given path.
+     *
+     * @returns (array of GitObject) An array of GitObject%s that were newly
+     * created while updating the specified node. Those need to be written to
+     * the repository together with the modified tree.
      */
     public function updateNode($path, $mode, $object)
     {

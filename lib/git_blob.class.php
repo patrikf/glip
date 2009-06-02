@@ -22,6 +22,9 @@ require_once('git_object.class.php');
 
 class GitBlob extends GitObject
 {
+    /**
+     * @brief The data contained in this blob.
+     */
     public $data = NULL;
 
     public function __construct($repo)

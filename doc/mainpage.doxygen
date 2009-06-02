@@ -1,0 +1,133 @@
+/**
+
+@mainpage API Documentation
+
+@section remarks General Remarks
+
+In its current state, the interface provided by glip is still very close to
+git's format for storing objects. You can examine a particular object in its
+on-disk representation with <tt>git cat-file -p HASH</tt>. It is a good idea
+to get familiar with some git internals, although if you have already used
+git, many things are quite straightforward.
+
+If you find the glip API to be lacking in some respect—extend it! :-)
+
+The glip homepage is at <http://fimml.at/glip>.
+
+
+@section using Using glip
+
+To use glip from your PHP code, simply include lib/glip.php.
+
+
+@section sha1 SHA-1 Names
+
+Since git objects are uniquely identified by their SHA-1 hash, many glip
+functions expect you to pass a hash or return one. There are two common
+representations for SHA-1 hashes:
+
+- the human-readable 40-character hexadecimal representation, e.g. \c
+  b1950c3ed1a8121abec98075548da4b03d82a8e3, and
+- the machine-readable 20-character binary representation.
+
+glip provides sha1_hex() and sha1_bin() to convert between the two
+representations.
+
+@attention The glip classes always operate on SHA-1 hashes in binary
+representation.
+
+
+@section reading Reading from a git repository
+
+A git repository is represented by a Git instance. The constructor expects a
+path to either a bare git repository, or the .git directory of a non-bare repository.
+
+@code
+$repo = new Git('test.git');
+@endcode
+
+All objects in the repository are mapped to instances of GitObject subclass,
+i.e. GitBlob, GitTree or GitCommit. If you know the SHA-1 hash of a git
+object, you can use Git::getObject to create a corresponding GitObject
+instance.
+
+@code
+$some_object = $repo->getObject(sha1_bin('b1950c3ed1a8121abec98075548da4b03d82a8e3'));
+@endcode
+
+In most cases, you will not know the SHA-1 hash of the object you want yet.
+Instead, you might want to look up the tip of a branch with Git::getTip:
+
+@code
+$master_name = $repo->getTip('master');
+$master = $repo->getObject($master_name);
+@endcode
+
+@todo It should be possible to look up any ref, not only branches.
+
+In a common git repository, this will give you a GitCommit instance in
+$master, referring to the last commit made to the @em master branch.
+
+GitObject%s hold all related data in public attributes. For example,
+GitCommit::$summary contains the commit summary of a particular commit.
+Utility functions are provided to make it easier to perform common functions.
+
+@section writing Writing to a git repository
+
+To change things in a repository, you currently have to directly make changes
+to the underlying git objects, no abstract interface is provided by glip yet.
+Once again, feel free to contribute.
+
+Creating a new object can be done in two ways:
+
+- starting with an existing object, or
+- starting from scratch.
+
+@code
+$object = clone $similar_object;
+/* OR */
+$object = new GitBlob($repo); /* or GitTree or GitCommit */
+@endcode
+
+@note
+It is good practice to use \c clone when modifying an object you received from
+Git::getObject() or another glip function calling it. Objects might be cached
+across Git::getObject() calls in future.
+
+You should then modify the object's public attributes accordingly, either
+directly or through helper functions like GitTree::updateNode(). When you're
+finished modifying, you need to update glip's internal cached hash value by
+using GitObject::rehash().
+
+@attention
+GitObject::getName() and all functions relying on it (including glip
+functions) may behave strangely if you fail to call GitObject::rehash() after
+modifying public attributes. This can ultimately lead to corrupted
+repositories.
+
+@note
+For performance reasons, you should not call GitObject::rehash() unless you
+really have to.
+
+@code
+$object = new GitBlob($repo);
+$object->data = "Hello World\n";
+$object->rehash();
+@endcode
+
+You can now use GitObject::getName() to get the object's SHA-1 sum and
+possibly reference it in other GitObject%s.
+
+The object has not written to disk yet. To do so, use GitObject::write():
+@code
+$object->write();
+@endcode
+
+Et voilà! You just wrote a new object to a git repository from PHP. If you
+actually execute the example code listed here, the result will be similar to
+that of <tt>echo Hello World | git hash-object -w --stdin</tt>.
+
+The same procedure applies to GitTree and GitCommit as well, just that they
+have different attributes to modify.
+
+*/

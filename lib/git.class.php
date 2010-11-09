@@ -222,8 +222,8 @@ class Git
     {
         $pos = 0;
 
-        $base_size = Binary::git_varint($delta, &$pos);
-        $result_size = Binary::git_varint($delta, &$pos);
+        $base_size = Binary::git_varint($delta, $pos);
+        $result_size = Binary::git_varint($delta, $pos);
 
         $r = '';
         while ($pos < strlen($delta))

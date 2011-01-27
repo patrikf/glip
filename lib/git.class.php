@@ -89,13 +89,18 @@ class Git
 
     public function __construct($dir)
     {
-	$this->dir = $dir;
+        $this->dir = realpath($dir);
+        if ($this->dir === FALSE || !@is_dir($this->dir))
+            throw new Exception(sprintf('not a directory: %s', $dir));
 
 	$this->packs = array();
 	$dh = opendir(sprintf('%s/objects/pack', $this->dir));
-	while (($entry = readdir($dh)) !== FALSE)
-	    if (preg_match('#^pack-([0-9a-fA-F]{40})\.idx$#', $entry, $m))
-		$this->packs[] = sha1_bin($m[1]);
+        if ($dh !== FALSE) {
+            while (($entry = readdir($dh)) !== FALSE)
+                if (preg_match('#^pack-([0-9a-fA-F]{40})\.idx$#', $entry, $m))
+                    $this->packs[] = sha1_bin($m[1]);
+            closedir($dh);
+        }
     }
 
     /**

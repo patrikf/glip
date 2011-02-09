@@ -2,6 +2,10 @@ glip is a Git Library In PHP. It allows you to access bare git repositories
 from PHP scripts, even without having git installed. The project's homepage is
 located at <http://fimml.at/glip>.
 
+The glip-devel mailing list at <glip-devel@fimml.at> is intended for both users
+and developers to discuss development and issues with the library. The mailing
+list archives can be found at <http://lists.fimml.at/glip-devel/>.
+
 
 glip was formerly part of eWiki, a wiki software written in PHP using git as
 version control backend. You can get more information on eWiki from

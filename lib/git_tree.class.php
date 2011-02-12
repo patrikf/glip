@@ -43,8 +43,8 @@ class GitTree extends GitObject
 	    $pos = strpos($data, "\0", $start);
 	    list($node->mode, $node->name) = explode(' ', substr($data, $start, $pos-$start), 2);
 	    $node->mode = intval($node->mode, 8);
-        $node->is_dir = !!($node->mode & 040000);
-        $node->is_submodule = !!($node->mode == 57344);
+            $node->is_dir = !!($node->mode & 040000);
+            $node->is_submodule = ($node->mode == 57344);
 	    $node->object = substr($data, $pos+1, 20);
 	    $start = $pos+21;
 

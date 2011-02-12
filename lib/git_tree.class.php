@@ -44,6 +44,7 @@ class GitTree extends GitObject
 	    list($node->mode, $node->name) = explode(' ', substr($data, $start, $pos-$start), 2);
 	    $node->mode = intval($node->mode, 8);
             $node->is_dir = !!($node->mode & 040000);
+            $node->is_submodule = ($node->mode == 57344);
 	    $node->object = substr($data, $pos+1, 20);
 	    $start = $pos+21;
 
@@ -122,12 +123,23 @@ class GitTree extends GitObject
         {
             if ($node->is_dir)
             {
-                $subtree = $this->repo->getObject($node->object);
-                foreach ($subtree->listRecursive() as $entry => $blob)
-                    $r[$node->name . '/' . $entry] = $blob;
+                if ($node->is_submodule)
+                {
+                    $r[$node->name. ':submodule'] = $node->object;
+                }
+                else
+                {
+                    $subtree = $this->repo->getObject($node->object);
+                    foreach ($subtree->listRecursive() as $entry => $blob)
+                    {
+                        $r[$node->name . '/' . $entry] = $blob;
+                    }
+                }
             }
             else
+            {
                 $r[$node->name] = $node->object;
+            }
         }
 
         return $r;
